@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f3ea;
+  --foreground: #17231d;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 78% 15%, rgba(248, 201, 85, 0.13), transparent 24rem),
+    var(--background);
+  color: var(--foreground);
+}
+
+button,
+[role="button"] {
+  cursor: pointer;
+}
+
+button:focus-visible,
+[role="button"]:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(232, 111, 81, 0.32);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: #f8c955;
+  color: #17231d;
+}

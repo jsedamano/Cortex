@@ -4,15 +4,17 @@ Cortex turns class materials into an adaptive study conversation. Students uploa
 
 ## Current prototype
 
-The website currently includes a complete mocked user journey:
+The website currently includes:
 
 - Drag-and-drop material selection
-- Suggested and custom study goals
-- Adaptive-question interface
-- Answer feedback with a source reference
-- Session progress and topic mastery
+- Live PDF, TXT, and Markdown analysis with Gemini
+- Gemini-generated topic summaries and suggested study goals
+- Custom study goals
+- Gemini-generated adaptive questions grounded in the uploaded material
+- Gemini answer evaluation, source references, and follow-up questions
+- Live session progress and topic mastery updates
 
-The interactions are intentionally mocked. The next milestone is to connect the upload and study flows to the Gemini API.
+The full material-analysis and adaptive tutoring loop is live for uploaded files. The built-in sample-notes path remains available as a local UI demonstration.
 
 ## Run locally
 
@@ -22,6 +24,12 @@ npm run dev
 ```
 
 Then open [http://localhost:3000](http://localhost:3000).
+
+Add a local `.env.local` file before using live material analysis:
+
+```env
+GEMINI_API_KEY=your_key_here
+```
 
 ## Quality checks
 
@@ -35,7 +43,9 @@ npm run build
 - Next.js App Router
 - React and TypeScript
 - Tailwind CSS
+- Google GenAI SDK
+- Zod
 
 ## Next milestone
 
-Add server-only Gemini integration for document upload, material analysis, structured study plans, and adaptive answer evaluation.
+Add session completion reports, persistence, and production safeguards such as authentication and rate limiting.

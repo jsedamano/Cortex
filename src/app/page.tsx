@@ -438,10 +438,6 @@ export default function Home() {
       {stage === "upload" && (
         <section className="mx-auto grid max-w-[1180px] gap-12 px-5 py-12 sm:px-8 sm:py-16 lg:grid-cols-[1.35fr_.65fr] lg:py-20">
           <div>
-            <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#e86f51]/25 bg-[#fff8ed] px-3 py-1.5 text-xs font-bold uppercase tracking-[0.13em] text-[#b94c34]">
-              <span className="size-1.5 rounded-full bg-[#e86f51]" />
-              Your personal study coach
-            </div>
             <h1 className="max-w-3xl text-[clamp(3rem,7vw,5.8rem)] font-semibold leading-[.92] tracking-[-0.065em]">
               Turn your notes into <span className="font-serif font-medium italic text-[#e86f51]">practice.</span>
             </h1>

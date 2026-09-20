@@ -15,6 +15,7 @@ const SUPPORTED_TYPES = new Set([
 const materialAnalysisSchema = z.object({
   courseTitle: z.string().min(1),
   materialSummary: z.string().min(1),
+  recommendedQuestionCount: z.number().int().min(5).max(20),
   materialCoherence: z.object({
     shouldWarn: z.boolean(),
     reason: z.string().max(240),
@@ -42,6 +43,12 @@ const materialAnalysisJsonSchema = {
     materialSummary: {
       type: "string",
       description: "A concise two-sentence summary of what the supplied materials teach.",
+    },
+    recommendedQuestionCount: {
+      type: "integer",
+      minimum: 5,
+      maximum: 20,
+      description: "A useful session length based on the breadth and depth of the supplied material.",
     },
     materialCoherence: {
       type: "object",
@@ -87,6 +94,7 @@ const materialAnalysisJsonSchema = {
   required: [
     "courseTitle",
     "materialSummary",
+    "recommendedQuestionCount",
     "materialCoherence",
     "topics",
     "suggestedGoals",
@@ -202,6 +210,9 @@ export async function POST(request: Request) {
         "Warn only when multiple files clearly cover substantially unrelated academic subjects, such as computer science and agriculture.",
         "Do not warn for different chapters, prerequisites, complementary subjects, or plausible interdisciplinary material.",
         "When only one file is supplied, materialCoherence.shouldWarn must be false.",
+        "Recommend a session length from 5 to 20 questions based on the amount of meaningful material, its conceptual breadth, and its depth.",
+        "Use 5 to 7 questions for a short or tightly focused source, 8 to 12 for a typical lecture or chapter, and 13 to 20 for broad, dense, or multi-document material.",
+        "Choose enough questions to sample the important concepts without padding the session with repetition.",
         "Return concise language suitable for a student-facing interface.",
       ].join(" "),
       input: [
@@ -211,6 +222,7 @@ export async function POST(request: Request) {
             "Analyze these materials. Identify the central learnable topics and propose specific study goals a student could select before beginning an adaptive oral-style practice session.",
             `Uploaded files: ${uploadedMaterials.map((file) => file.displayName).join(", ")}`,
             "Also assess whether these files are coherent enough for one focused study session.",
+            "Recommend the initial number of questions for that session from the actual content, not merely the number or byte size of the files.",
           ].join("\n"),
         },
         ...uploadedMaterials.map((file) => ({

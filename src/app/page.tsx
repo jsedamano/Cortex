@@ -7,6 +7,7 @@ type Stage = "upload" | "goal" | "study" | "results";
 type MaterialAnalysis = {
   courseTitle: string;
   materialSummary: string;
+  recommendedQuestionCount: number;
   materialCoherence: {
     shouldWarn: boolean;
     reason: string;
@@ -98,6 +99,7 @@ const sampleAnalysis: MaterialAnalysis = {
   courseTitle: "Data Structures",
   materialSummary:
     "These sample notes cover linked-list structure, node references, traversal, and common insertion and removal operations.",
+  recommendedQuestionCount: 8,
   materialCoherence: {
     shouldWarn: false,
     reason: "",
@@ -324,9 +326,14 @@ export default function Home() {
 
   const stageNumber = stage === "upload" ? 1 : stage === "goal" ? 2 : 3;
   const question = currentQuestion ?? sampleQuestions[questionIndex % sampleQuestions.length];
+  const targetQuestionCount = analysis?.recommendedQuestionCount ?? 8;
   const progress = useMemo(
-    () => Math.min(Math.round(((questionIndex + 1) / 8) * 100), 100),
-    [questionIndex],
+    () =>
+      Math.min(
+        Math.round(((questionIndex + 1) / targetQuestionCount) * 100),
+        100,
+      ),
+    [questionIndex, targetQuestionCount],
   );
   const visibleMastery = mastery.length
     ? mastery
@@ -533,6 +540,7 @@ export default function Home() {
         body: JSON.stringify({
           goal: goal.trim(),
           previousInteractionId: materialInteractionId,
+          questionCount: targetQuestionCount,
         }),
       });
       const payload = (await response.json()) as
@@ -606,6 +614,7 @@ export default function Home() {
           answer: studentAnswer.trim(),
           previousInteractionId: studyInteractionId,
           questionNumber: questionIndex + 1,
+          targetQuestionCount,
         }),
       });
       const payload = (await response.json()) as
@@ -814,19 +823,29 @@ export default function Home() {
                       <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#fff0e8] text-[#d65e43]"><span className="size-4"><Icon name="file" /></span></span>
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold">{file.name}</span>
                       <span className="relative size-7 shrink-0">
-                        <span className="absolute inset-0 hidden place-items-center rounded-full bg-[#dff1e5] text-[#24633e] transition-opacity sm:grid sm:group-hover/file:opacity-0 sm:group-focus-within/file:opacity-0">
-                          <span className="size-3.5"><Icon name="check" /></span>
-                        </span>
-                        <button
-                          type="button"
-                          disabled={isAnalyzing}
-                          onClick={() => removeFile(index)}
-                          className="absolute inset-0 grid place-items-center rounded-full bg-[#fff0e8] text-[#a9432f] opacity-100 transition hover:bg-[#fbded1] disabled:cursor-wait disabled:opacity-30 sm:opacity-0 sm:group-hover/file:opacity-100 sm:group-focus-within/file:opacity-100"
-                          aria-label={`Remove ${file.name}`}
-                          title="Remove file"
-                        >
-                          <span className="size-4"><Icon name="close" /></span>
-                        </button>
+                        {isAnalyzing ? (
+                          <span
+                            className="absolute inset-0 grid place-items-center rounded-full bg-[#e4eee7] text-[#527062]"
+                            title="Gemini is analyzing this file"
+                          >
+                            <span className="size-3.5 animate-spin rounded-full border-2 border-[#527062]/25 border-t-[#527062]" />
+                          </span>
+                        ) : (
+                          <>
+                            <span className="absolute inset-0 hidden place-items-center rounded-full bg-[#dff1e5] text-[#24633e] sm:grid sm:group-hover/file:opacity-0 sm:group-focus-within/file:opacity-0">
+                              <span className="size-3.5"><Icon name="check" /></span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeFile(index)}
+                              className="absolute inset-0 grid place-items-center rounded-full bg-[#fff0e8] text-[#a9432f] opacity-100 transition-colors hover:bg-[#fbded1] sm:opacity-0 sm:group-hover/file:opacity-100 sm:group-focus-within/file:opacity-100"
+                              aria-label={`Remove ${file.name}`}
+                              title="Remove file"
+                            >
+                              <span className="size-4"><Icon name="close" /></span>
+                            </button>
+                          </>
+                        )}
                       </span>
                     </div>
                   ))}
@@ -938,6 +957,10 @@ export default function Home() {
                 <>
                   <p className="mt-5 text-sm font-semibold leading-5">{analysis.courseTitle}</p>
                   <p className="mt-2 text-sm leading-6 text-[#68756e]">{analysis.materialSummary}</p>
+                  <div className="mt-4 rounded-2xl bg-[#fff3de] px-3.5 py-3 text-sm text-[#79531c]">
+                    <span className="font-semibold">Planned session:</span>{" "}
+                    {analysis.recommendedQuestionCount} questions based on the scope of these materials
+                  </div>
                   <div className="mt-4 flex flex-wrap gap-1.5">
                     {analysis.topics.slice(0, 4).map((topic) => (
                       <span key={topic.name} title={topic.description} className="rounded-full bg-[#e8eee9] px-2.5 py-1 text-[11px] font-semibold text-[#365247]">
@@ -997,7 +1020,7 @@ export default function Home() {
                   <span className="text-sm font-bold text-[#d65e43]">{progress}%</span>
                 </div>
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#dfe4df]"><div className="h-full rounded-full bg-[#e86f51] transition-all duration-500" style={{ width: `${progress}%` }} /></div>
-                <p className="mt-3 text-xs leading-5 text-[#738078]">Question {questionIndex + 1} of approximately 8</p>
+                <p className="mt-3 text-xs leading-5 text-[#738078]">Question {questionIndex + 1} of {targetQuestionCount}</p>
               </div>
               <div className="rounded-[22px] bg-[#173e2e] p-5 text-white">
                 <p className="text-xs font-bold uppercase tracking-[.12em] text-[#9bb8a8]">Mastery</p>
@@ -1074,7 +1097,13 @@ export default function Home() {
                         </p>
                       </div>
                     </div>
-                    <button onClick={nextQuestion} className="mt-5 flex items-center gap-2 rounded-xl bg-[#2f7748] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#28663e]">Continue <span className="size-4"><Icon name="arrow" /></span></button>
+                    {questionIndex + 1 >= targetQuestionCount ? (
+                      <button onClick={() => { setStage("upload"); setAnswer(""); setFeedback(null); setSubmitted(false); }} className="mt-5 flex items-center gap-2 rounded-xl bg-[#2f7748] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#28663e]">
+                        Finish session <span className="size-4"><Icon name="check" /></span>
+                      </button>
+                    ) : (
+                      <button onClick={nextQuestion} className="mt-5 flex items-center gap-2 rounded-xl bg-[#2f7748] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#28663e]">Continue <span className="size-4"><Icon name="arrow" /></span></button>
+                    )}
                   </div>
                 )}
               </div>

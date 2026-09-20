@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 const requestSchema = z.object({
   goal: z.string().trim().min(3).max(2_000),
   previousInteractionId: z.string().min(1),
+  questionCount: z.number().int().min(5).max(20),
 });
 
 const questionSchema = z.object({
@@ -154,6 +155,7 @@ export async function POST(request: Request) {
         "Do not warn for broad goals, alternate terminology, reasonable applications, or goals that partially overlap the material.",
         "Ask exactly one question at a time and never reveal its answer in the hint.",
         "Prefer explanation and application over trivia.",
+        "Use the requested question count as the planned session length and pace topic coverage accordingly.",
         "Use page references only when they can be supported by the material.",
       ].join(" "),
       input: [
@@ -162,7 +164,8 @@ export async function POST(request: Request) {
           text: [
             `The student's practice goal is: ${parsedRequest.data.goal}`,
             "Report whether that goal aligns with the analyzed materials.",
-            "Create an adaptive study session of approximately eight questions.",
+            `Create an adaptive study session targeting ${parsedRequest.data.questionCount} questions.`,
+            "Prioritize the student's goal while leaving enough questions to cover the most important supporting topics.",
             "Choose the best opening question from the analyzed material.",
             "Initialize the mastery topics conservatively because the student has not answered yet.",
           ].join("\n"),

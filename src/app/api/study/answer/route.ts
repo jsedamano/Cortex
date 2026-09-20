@@ -7,6 +7,7 @@ const requestSchema = z.object({
   answer: z.string().trim().min(1).max(8_000),
   previousInteractionId: z.string().min(1),
   questionNumber: z.number().int().min(1).max(20),
+  targetQuestionCount: z.number().int().min(5).max(20),
 });
 
 const questionSchema = z.object({
@@ -171,6 +172,7 @@ export async function POST(request: Request) {
         "Be precise and encouraging, but never praise an incorrect answer as correct.",
         "Then choose exactly one grounded follow-up question.",
         "If the student is weak, clarify or remediate; if strong, increase depth or apply the idea.",
+        "Pace the remaining concepts against the planned session length, prioritizing the student's goal and essential gaps.",
         "Do not repeat a question already asked.",
       ].join(" "),
       input: [
@@ -178,7 +180,11 @@ export async function POST(request: Request) {
           type: "text",
           text: [
             `This is answer ${parsedRequest.data.questionNumber} in the session.`,
+            `The planned session length is ${parsedRequest.data.targetQuestionCount} questions.`,
             "Evaluate the following student response, update topic mastery, and select the best next question.",
+            parsedRequest.data.questionNumber >= parsedRequest.data.targetQuestionCount
+              ? "This is the final planned answer, so make the feedback especially useful as a concise wrap-up. The required nextQuestion can be a brief optional reflection."
+              : `There are ${parsedRequest.data.targetQuestionCount - parsedRequest.data.questionNumber} planned questions after this answer; use them efficiently.`,
             `Student response: ${parsedRequest.data.answer}`,
           ].join("\n"),
         },

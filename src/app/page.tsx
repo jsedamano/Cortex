@@ -2,7 +2,7 @@
 
 import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
 
-type Stage = "upload" | "goal" | "study";
+type Stage = "upload" | "goal" | "study" | "results";
 
 type MaterialAnalysis = {
   courseTitle: string;
@@ -63,6 +63,29 @@ type AnswerResponse = {
   feedback: StudyFeedback;
   masteryUpdates: MasteryTopic[];
   nextQuestion: StudyQuestion;
+};
+
+type SessionReport = {
+  headline: string;
+  overview: string;
+  overallScore: number | null;
+  strengths: string[];
+  areasToImprove: string[];
+  nextSteps: string[];
+  topicResults: Array<{
+    topic: string;
+    score: number;
+    note: string;
+  }>;
+};
+
+type SessionResults = SessionReport & {
+  questionsAnswered: number;
+};
+
+type EndSessionResponse = {
+  interactionId: string;
+  report: SessionReport;
 };
 
 const defaultSuggestedGoals = [
@@ -203,6 +226,73 @@ function WarningDialog({
   );
 }
 
+function topicResultNote(score: number) {
+  if (score >= 80) return "Strong understanding demonstrated during this session.";
+  if (score >= 60) return "Developing well; a little more practice should make this reliable.";
+  if (score > 0) return "Needs more explanation and retrieval practice.";
+  return "Not assessed during this session.";
+}
+
+function createUnassessedReport(mastery: MasteryTopic[]): SessionReport {
+  return {
+    headline: "There is more to explore",
+    overview:
+      "The session ended before any answers were evaluated, so Cortex does not yet have enough evidence to assess your understanding. Your materials and goal are ready whenever you want to try again.",
+    overallScore: null,
+    strengths: [],
+    areasToImprove: [],
+    nextSteps: [
+      "Restart the session and answer at least two or three questions.",
+      "Explain each answer in your own words, even when you are uncertain.",
+    ],
+    topicResults: mastery.map(({ topic }) => ({
+      topic,
+      score: 0,
+      note: "Not assessed during this session.",
+    })),
+  };
+}
+
+function createSampleReport(
+  questionsAnswered: number,
+  mastery: MasteryTopic[],
+  latestFeedback: StudyFeedback | null,
+): SessionReport {
+  const averageMastery = mastery.length
+    ? Math.round(
+        mastery.reduce((total, topic) => total + topic.score, 0) /
+          mastery.length,
+      )
+    : 0;
+  const overallScore = latestFeedback?.score ?? averageMastery;
+
+  return {
+    headline:
+      overallScore >= 70
+        ? "A promising foundation"
+        : "A useful first step",
+    overview: `You completed ${questionsAnswered} ${questionsAnswered === 1 ? "question" : "questions"} in the sample session. Your responses show where to focus next, though a longer session would provide a more complete assessment.`,
+    overallScore,
+    strengths:
+      overallScore >= 70
+        ? ["You communicated the central idea clearly in the evaluated response."]
+        : ["You engaged with the question and created a clear starting point for review."],
+    areasToImprove: [
+      "Explain how linked-list structure affects access and update costs.",
+      "Use a small pointer-by-pointer example when describing an operation.",
+    ],
+    nextSteps: [
+      "Practice tracing an insertion and removal on paper.",
+      "Compare linked-list and array tradeoffs without looking at your notes.",
+    ],
+    topicResults: mastery.map(({ topic, score }) => ({
+      topic,
+      score,
+      note: topicResultNote(score),
+    })),
+  };
+}
+
 export default function Home() {
   const [stage, setStage] = useState<Stage>("upload");
   const [files, setFiles] = useState<File[]>([]);
@@ -218,10 +308,13 @@ export default function Home() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  const [isEnding, setIsEnding] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [materialWarning, setMaterialWarning] = useState<string | null>(null);
   const [goalWarning, setGoalWarning] = useState<StudyStartResponse | null>(null);
   const [studyError, setStudyError] = useState<string | null>(null);
+  const [sessionEndError, setSessionEndError] = useState<string | null>(null);
+  const [sessionResults, setSessionResults] = useState<SessionResults | null>(null);
   const [goal, setGoal] = useState("");
   const [answer, setAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -263,6 +356,8 @@ export default function Home() {
     setUploadError(null);
     setMaterialWarning(null);
     setGoalWarning(null);
+    setSessionEndError(null);
+    setSessionResults(null);
     setFiles((current) => {
       const allFiles = [...current, ...incoming];
       return allFiles.filter(
@@ -302,6 +397,8 @@ export default function Home() {
     setMaterialWarning(null);
     setGoalWarning(null);
     setStudyError(null);
+    setSessionEndError(null);
+    setSessionResults(null);
     setGoal("");
     setAnswer("");
     setSubmitted(false);
@@ -386,6 +483,8 @@ export default function Home() {
     setFeedback(null);
     setQueuedQuestion(null);
     setSubmitted(false);
+    setSessionEndError(null);
+    setSessionResults(null);
     setStage("study");
   }
 
@@ -404,6 +503,8 @@ export default function Home() {
     if (!goal.trim()) return;
     setStudyError(null);
     setGoalWarning(null);
+    setSessionEndError(null);
+    setSessionResults(null);
 
     if (!materialInteractionId) {
       setSessionTitle("Data Structures review");
@@ -417,6 +518,9 @@ export default function Home() {
         { topic: "Operations", score: 20 },
       ]);
       setQuestionIndex(0);
+      setAnswer("");
+      setSubmitted(false);
+      setSessionEndError(null);
       setStage("study");
       return;
     }
@@ -465,7 +569,8 @@ export default function Home() {
     setStudyError(null);
 
     if (!studyInteractionId) {
-      setFeedback({
+      const sampleScore = studentAnswer === "I’m not sure yet." ? 10 : 72;
+      const sampleFeedback: StudyFeedback = {
         headline:
           studentAnswer === "I’m not sure yet."
             ? "That’s okay — let’s build it together."
@@ -474,12 +579,20 @@ export default function Home() {
           studentAnswer === "I’m not sure yet."
             ? "An array keeps elements next to each other in memory, while a linked list connects separate nodes using references. On the next question, focus on what those references let us change efficiently."
             : "You correctly identified that linked-list nodes are not stored contiguously. To make this complete, explain how that changes random access and insertion cost.",
-        score: studentAnswer === "I’m not sure yet." ? 10 : 72,
+        score: sampleScore,
         correctPoints: [],
         missingPoints: [],
         misconceptions: [],
         sourceReference: question.sourceReference,
-      });
+      };
+      setFeedback(sampleFeedback);
+      setMastery((current) =>
+        current.map((topic, index) =>
+          index === questionIndex % current.length
+            ? { ...topic, score: sampleScore }
+            : topic,
+        ),
+      );
       setSubmitted(true);
       return;
     }
@@ -536,6 +649,105 @@ export default function Home() {
     setSubmitted(false);
   }
 
+  async function endStudySession() {
+    if (isChecking || isEnding) return;
+
+    const questionsAnswered = questionIndex + (submitted ? 1 : 0);
+    const finalMastery = mastery.length ? mastery : visibleMastery;
+    setSessionEndError(null);
+
+    if (questionsAnswered === 0) {
+      setSessionResults({
+        ...createUnassessedReport(finalMastery),
+        questionsAnswered,
+      });
+      setStage("results");
+      return;
+    }
+
+    if (!studyInteractionId) {
+      setSessionResults({
+        ...createSampleReport(questionsAnswered, finalMastery, feedback),
+        questionsAnswered,
+      });
+      setStage("results");
+      return;
+    }
+
+    setIsEnding(true);
+    try {
+      const response = await fetch("/api/study/end", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          goal: goal.trim(),
+          mastery: finalMastery,
+          previousInteractionId: studyInteractionId,
+          questionsAnswered,
+        }),
+      });
+      const payload = (await response.json()) as
+        | EndSessionResponse
+        | { error?: string };
+
+      if (!response.ok || !("report" in payload)) {
+        throw new Error(
+          "error" in payload && payload.error
+            ? payload.error
+            : "Cortex could not create the session report.",
+        );
+      }
+
+      setStudyInteractionId(payload.interactionId);
+      setSessionResults({ ...payload.report, questionsAnswered });
+      setStage("results");
+    } catch (error) {
+      setSessionEndError(
+        error instanceof Error
+          ? error.message
+          : "Cortex could not create the session report.",
+      );
+    } finally {
+      setIsEnding(false);
+    }
+  }
+
+  function studyAgain() {
+    setStudyInteractionId(null);
+    setCurrentQuestion(null);
+    setQueuedQuestion(null);
+    setMastery([]);
+    setFeedback(null);
+    setAnswer("");
+    setGoal("");
+    setSubmitted(false);
+    setQuestionIndex(0);
+    setSessionEndError(null);
+    setSessionResults(null);
+    setStage("goal");
+  }
+
+  function startWithNewMaterials() {
+    setFiles([]);
+    setSampleFileName(null);
+    setAnalysis(null);
+    setMaterialInteractionId(null);
+    setStudyInteractionId(null);
+    setSessionTitle("Study session");
+    setCurrentQuestion(null);
+    setQueuedQuestion(null);
+    setMastery([]);
+    setFeedback(null);
+    setGoal("");
+    setAnswer("");
+    setSubmitted(false);
+    setQuestionIndex(0);
+    setSessionEndError(null);
+    setSessionResults(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setStage("upload");
+  }
+
   return (
     <main className="min-h-screen bg-[#f7f3ea] text-[#17231d]">
       <header className="border-b border-[#17231d]/10 bg-[#f7f3ea]/90 backdrop-blur-md">
@@ -554,7 +766,7 @@ export default function Home() {
         </div>
       </header>
 
-      {stage !== "study" && (
+      {(stage === "upload" || stage === "goal") && (
         <div className="mx-auto max-w-[1180px] px-5 pt-6 sm:px-8">
           <div className="grid grid-cols-3 gap-2" aria-label={`Step ${stageNumber} of 3`}>
             {[1, 2, 3].map((step) => (
@@ -761,8 +973,21 @@ export default function Home() {
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#d65e43]">Active session</p>
               <h1 className="mt-1 text-2xl font-semibold tracking-[-0.035em]">{sessionTitle}</h1>
             </div>
-            <button onClick={() => { setStage("upload"); setAnswer(""); setFeedback(null); setSubmitted(false); }} className="rounded-xl border border-[#173e2e]/15 bg-white/50 px-4 py-2 text-sm font-semibold transition hover:bg-white">End session</button>
+            <button
+              disabled={isChecking || isEnding}
+              onClick={endStudySession}
+              className="flex items-center gap-2 rounded-xl border border-[#173e2e]/15 bg-white/50 px-4 py-2 text-sm font-semibold transition hover:bg-white disabled:cursor-wait disabled:opacity-60"
+            >
+              {isEnding && <span className="size-3.5 animate-spin rounded-full border-2 border-[#173e2e]/20 border-t-[#173e2e]" />}
+              {isEnding ? "Building report…" : "End session"}
+            </button>
           </div>
+
+          {sessionEndError && (
+            <p className="mb-6 rounded-2xl border border-[#e86f51]/25 bg-[#fff1e8] px-4 py-3 text-sm leading-6 text-[#a9432f]" role="alert">
+              {sessionEndError}
+            </p>
+          )}
 
           <div className="grid gap-5 lg:grid-cols-[250px_1fr]">
             <aside className="order-2 space-y-4 lg:order-1">
@@ -853,6 +1078,130 @@ export default function Home() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {stage === "results" && sessionResults && (
+        <section className="mx-auto max-w-[1080px] px-5 py-8 sm:px-8 sm:py-12">
+          <div className="overflow-hidden rounded-[30px] bg-[#173e2e] p-7 text-white shadow-[0_28px_80px_rgba(23,62,46,.22)] sm:p-10">
+            <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-3xl">
+                <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-[#f8c955]">
+                  <span className="size-1.5 rounded-full bg-[#f8c955]" />
+                  Session complete
+                </div>
+                <h1 className="mt-5 text-4xl font-semibold leading-tight tracking-[-0.05em] sm:text-6xl">
+                  {sessionResults.headline}
+                </h1>
+                <p className="mt-5 max-w-2xl text-base leading-7 text-[#d7e2dc] sm:text-lg sm:leading-8">
+                  {sessionResults.overview}
+                </p>
+              </div>
+
+              <div className="flex shrink-0 flex-col gap-3 sm:flex-row lg:flex-col">
+                <button onClick={studyAgain} className="rounded-2xl bg-[#f8c955] px-5 py-3 font-semibold text-[#173e2e] transition hover:-translate-y-0.5 hover:bg-[#ffda73]">
+                  Set a new goal
+                </button>
+                <button onClick={startWithNewMaterials} className="rounded-2xl border border-white/20 px-5 py-3 font-semibold text-white transition hover:bg-white/10">
+                  Use new materials
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-[180px_180px_1fr]">
+            <div className="rounded-[22px] border border-[#173e2e]/10 bg-[#fffdf8] p-5">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#7b8780]">Overall score</p>
+              <p className="mt-2 text-4xl font-semibold tracking-[-0.05em] text-[#d65e43]">
+                {sessionResults.overallScore === null ? "—" : `${sessionResults.overallScore}%`}
+              </p>
+              <p className="mt-2 text-xs leading-5 text-[#738078]">
+                {sessionResults.overallScore === null ? "Not enough evidence yet" : "Across evaluated answers"}
+              </p>
+            </div>
+
+            <div className="rounded-[22px] border border-[#173e2e]/10 bg-[#fffdf8] p-5">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#7b8780]">Completed</p>
+              <p className="mt-2 text-4xl font-semibold tracking-[-0.05em] text-[#173e2e]">{sessionResults.questionsAnswered}</p>
+              <p className="mt-2 text-xs leading-5 text-[#738078]">
+                {sessionResults.questionsAnswered === 1 ? "Question answered" : "Questions answered"}
+              </p>
+            </div>
+
+            <div className="rounded-[22px] border border-[#173e2e]/10 bg-[#fffdf8] p-5 sm:col-span-2 lg:col-span-1">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#7b8780]">Your study goal</p>
+              <p className="mt-3 line-clamp-3 font-semibold leading-6 text-[#365247]">{goal}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-5 lg:grid-cols-2">
+            <div className="rounded-[24px] border border-[#6dab7d]/25 bg-[#eef8f0] p-6">
+              <div className="flex items-center gap-3">
+                <span className="grid size-9 place-items-center rounded-full bg-[#2f7748] text-white"><span className="size-4"><Icon name="check" /></span></span>
+                <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#1f5d37]">What went well</h2>
+              </div>
+              {sessionResults.strengths.length ? (
+                <ul className="mt-5 space-y-3 text-sm leading-6 text-[#456250]">
+                  {sessionResults.strengths.map((strength) => (
+                    <li key={strength} className="flex gap-3"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-[#2f7748]" />{strength}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-5 text-sm leading-6 text-[#5f7867]">Complete a few questions so Cortex can identify demonstrated strengths.</p>
+              )}
+            </div>
+
+            <div className="rounded-[24px] border border-[#e86f51]/20 bg-[#fff1e8] p-6">
+              <div className="flex items-center gap-3">
+                <span className="grid size-9 place-items-center rounded-full bg-[#e86f51] text-white"><span className="text-lg font-bold">↑</span></span>
+                <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#8c3f2e]">What to improve</h2>
+              </div>
+              {sessionResults.areasToImprove.length ? (
+                <ul className="mt-5 space-y-3 text-sm leading-6 text-[#6b5149]">
+                  {sessionResults.areasToImprove.map((area) => (
+                    <li key={area} className="flex gap-3"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-[#e86f51]" />{area}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-5 text-sm leading-6 text-[#7f6258]">Complete a few questions so Cortex can identify specific improvement areas.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
+            <div className="rounded-[24px] border border-[#173e2e]/10 bg-[#fffdf8] p-6 sm:p-7">
+              <h2 className="text-xl font-semibold tracking-[-0.03em]">Topic results</h2>
+              <div className="mt-6 space-y-5">
+                {sessionResults.topicResults.map(({ topic, score, note }) => (
+                  <div key={topic}>
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="font-semibold">{topic}</p>
+                      <span className="text-sm font-bold text-[#536159]">{score}%</span>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e2e6e2]">
+                      <div
+                        className={`h-full rounded-full ${score >= 70 ? "bg-[#2f7748]" : score >= 40 ? "bg-[#e5a52e]" : "bg-[#e86f51]"}`}
+                        style={{ width: `${score}%` }}
+                      />
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-[#738078]">{note}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="h-fit rounded-[24px] bg-[#173e2e] p-6 text-white sm:p-7">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#f8c955]">Recommended next steps</p>
+              <ol className="mt-6 space-y-5">
+                {sessionResults.nextSteps.map((step, index) => (
+                  <li key={step} className="flex gap-4">
+                    <span className="grid size-7 shrink-0 place-items-center rounded-full bg-white/10 font-mono text-xs text-[#f8c955]">{index + 1}</span>
+                    <span className="text-sm leading-6 text-[#d7e2dc]">{step}</span>
+                  </li>
+                ))}
+              </ol>
             </div>
           </div>
         </section>

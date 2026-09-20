@@ -12,6 +12,7 @@ Cortex turns class materials into an adaptive study conversation. Students uploa
 - Adaptive questions grounded in the uploaded material
 - Answer evaluation, source references, and follow-up questions
 - Live topic-mastery and session-progress updates
+- End-of-session reports with strengths, improvement areas, and recommended next steps
 - A built-in sample-notes path for testing the interface without an API call
 
 ## Prerequisites
@@ -200,7 +201,6 @@ src/app/
 
 ## Planned work
 
-- End-of-session reports
 - Saved study history and persistence
 - Authentication and per-user data separation
 - Rate limiting and production monitoring

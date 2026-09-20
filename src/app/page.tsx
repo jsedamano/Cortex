@@ -106,12 +106,13 @@ function Mark({ className = "" }: { className?: string }) {
   );
 }
 
-function Icon({ name }: { name: "file" | "brain" | "arrow" | "check" }) {
+function Icon({ name }: { name: "file" | "brain" | "arrow" | "check" | "close" }) {
   const paths = {
     file: <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8m-6-6 6 6m-6-6v6h6M8 13h8M8 17h6" />,
     brain: <path d="M9.5 4.5A3.5 3.5 0 0 0 6 8v1a3 3 0 0 0-1 5.83V16a3 3 0 0 0 3 3h1.5M14.5 4.5A3.5 3.5 0 0 1 18 8v1a3 3 0 0 1 1 5.83V16a3 3 0 0 1-3 3h-1.5M9.5 4.5v15M14.5 4.5v15M6 9.5h3.5m5 0H18M7 15h2.5m5 0H17" />,
     arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
     check: <path d="m5 12 4 4L19 6" />,
+    close: <path d="m7 7 10 10M17 7 7 17" />,
   };
 
   return (
@@ -197,6 +198,27 @@ export default function Home() {
     event.preventDefault();
     setDragActive(false);
     addFiles(event.dataTransfer.files);
+  }
+
+  function removeFile(fileIndex: number) {
+    setFiles((current) => current.filter((_, index) => index !== fileIndex));
+    if (fileInputRef.current) fileInputRef.current.value = "";
+
+    setSampleFileName(null);
+    setAnalysis(null);
+    setMaterialInteractionId(null);
+    setStudyInteractionId(null);
+    setSessionTitle("Study session");
+    setCurrentQuestion(null);
+    setQueuedQuestion(null);
+    setMastery([]);
+    setFeedback(null);
+    setUploadError(null);
+    setStudyError(null);
+    setGoal("");
+    setAnswer("");
+    setSubmitted(false);
+    setQuestionIndex(0);
   }
 
   async function analyzeMaterials() {
@@ -450,11 +472,25 @@ export default function Home() {
 
               {files.length > 0 && (
                 <div className="mt-3 space-y-2">
-                  {files.map((file) => (
-                    <div key={`${file.name}-${file.size}`} className="flex items-center gap-3 rounded-2xl border border-[#173e2e]/10 bg-white px-4 py-3">
+                  {files.map((file, index) => (
+                    <div key={`${file.name}-${file.size}`} className="group/file flex items-center gap-3 rounded-2xl border border-[#173e2e]/10 bg-white px-4 py-3">
                       <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#fff0e8] text-[#d65e43]"><span className="size-4"><Icon name="file" /></span></span>
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold">{file.name}</span>
-                      <span className="grid size-6 place-items-center rounded-full bg-[#dff1e5] text-[#24633e]"><span className="size-3.5"><Icon name="check" /></span></span>
+                      <span className="relative size-7 shrink-0">
+                        <span className="absolute inset-0 hidden place-items-center rounded-full bg-[#dff1e5] text-[#24633e] transition-opacity sm:grid sm:group-hover/file:opacity-0 sm:group-focus-within/file:opacity-0">
+                          <span className="size-3.5"><Icon name="check" /></span>
+                        </span>
+                        <button
+                          type="button"
+                          disabled={isAnalyzing}
+                          onClick={() => removeFile(index)}
+                          className="absolute inset-0 grid place-items-center rounded-full bg-[#fff0e8] text-[#a9432f] opacity-100 transition hover:bg-[#fbded1] disabled:cursor-wait disabled:opacity-30 sm:opacity-0 sm:group-hover/file:opacity-100 sm:group-focus-within/file:opacity-100"
+                          aria-label={`Remove ${file.name}`}
+                          title="Remove file"
+                        >
+                          <span className="size-4"><Icon name="close" /></span>
+                        </button>
+                      </span>
                     </div>
                   ))}
                 </div>

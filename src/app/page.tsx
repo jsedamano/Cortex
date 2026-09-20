@@ -992,9 +992,9 @@ export default function Home() {
                     <span className="font-semibold">Planned session:</span>{" "}
                     {analysis.recommendedQuestionCount} questions based on the scope of these materials
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-1.5">
+                  <div className="mt-4 grid auto-rows-fr gap-2">
                     {analysis.topics.slice(0, 4).map((topic) => (
-                      <span key={topic.name} title={topic.description} className="rounded-full bg-[#e8eee9] px-2.5 py-1 text-[11px] font-semibold text-[#365247]">
+                      <span key={topic.name} title={topic.description} className="flex min-h-12 w-full items-center rounded-2xl bg-[#e8eee9] px-3.5 py-2 text-[11px] font-semibold leading-4 text-[#365247]">
                         {topic.name}
                       </span>
                     ))}

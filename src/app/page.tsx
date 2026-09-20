@@ -143,13 +143,14 @@ function Mark({ className = "" }: { className?: string }) {
   );
 }
 
-function Icon({ name }: { name: "file" | "brain" | "arrow" | "check" | "close" }) {
+function Icon({ name }: { name: "file" | "brain" | "arrow" | "check" | "close" | "minus" }) {
   const paths = {
     file: <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8m-6-6 6 6m-6-6v6h6M8 13h8M8 17h6" />,
     brain: <path d="M9.5 4.5A3.5 3.5 0 0 0 6 8v1a3 3 0 0 0-1 5.83V16a3 3 0 0 0 3 3h1.5M14.5 4.5A3.5 3.5 0 0 1 18 8v1a3 3 0 0 1 1 5.83V16a3 3 0 0 1-3 3h-1.5M9.5 4.5v15M14.5 4.5v15M6 9.5h3.5m5 0H18M7 15h2.5m5 0H17" />,
     arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
     check: <path d="m5 12 4 4L19 6" />,
     close: <path d="m7 7 10 10M17 7 7 17" />,
+    minus: <path d="M5 12h14" />,
   };
 
   return (
@@ -327,6 +328,36 @@ export default function Home() {
   const stageNumber = stage === "upload" ? 1 : stage === "goal" ? 2 : 3;
   const question = currentQuestion ?? sampleQuestions[questionIndex % sampleQuestions.length];
   const targetQuestionCount = analysis?.recommendedQuestionCount ?? 8;
+  const feedbackTheme =
+    (feedback?.score ?? 100) < 30
+      ? {
+          card: "border-[#df6a5a]/35 bg-[#fff0ec]",
+          icon: "bg-[#c94f3f]",
+          iconName: "close" as const,
+          headline: "text-[#8d3429]",
+          badge: "bg-[#f3d1ca] text-[#8d3429]",
+          explanation: "text-[#704b44]",
+          source: "text-[#7d5b54]",
+        }
+      : (feedback?.score ?? 100) < 70
+        ? {
+            card: "border-[#dfb34c]/40 bg-[#fff8df]",
+            icon: "bg-[#c98f1f]",
+            iconName: "minus" as const,
+            headline: "text-[#79550f]",
+            badge: "bg-[#f3e2a7] text-[#74500b]",
+            explanation: "text-[#675939]",
+            source: "text-[#766946]",
+          }
+        : {
+            card: "border-[#6dab7d]/30 bg-[#eef8f0]",
+            icon: "bg-[#2f7748]",
+            iconName: "check" as const,
+            headline: "text-[#1f5d37]",
+            badge: "bg-[#d9eedf] text-[#2f6842]",
+            explanation: "text-[#456250]",
+            source: "text-[#5f7867]",
+          };
   const progress = useMemo(
     () =>
       Math.min(
@@ -1067,15 +1098,15 @@ export default function Home() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-6 rounded-[22px] border border-[#6dab7d]/30 bg-[#eef8f0] p-5 sm:p-6">
+                  <div className={`mt-6 rounded-[22px] border p-5 sm:p-6 ${feedbackTheme.card}`}>
                     <div className="flex gap-4">
-                      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#2f7748] text-white"><span className="size-5"><Icon name="check" /></span></span>
+                      <span className={`grid size-10 shrink-0 place-items-center rounded-full text-white ${feedbackTheme.icon}`}><span className="size-5"><Icon name={feedbackTheme.iconName} /></span></span>
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold text-[#1f5d37]">{feedback?.headline}</p>
-                          <span className="rounded-full bg-[#d9eedf] px-2.5 py-1 text-xs font-bold text-[#2f6842]">{feedback?.score}%</span>
+                          <p className={`font-semibold ${feedbackTheme.headline}`}>{feedback?.headline}</p>
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${feedbackTheme.badge}`}>{feedback?.score}%</span>
                         </div>
-                        <p className="mt-2 leading-7 text-[#456250]">{feedback?.explanation}</p>
+                        <p className={`mt-2 leading-7 ${feedbackTheme.explanation}`}>{feedback?.explanation}</p>
                         {feedback && (feedback.correctPoints.length > 0 || feedback.missingPoints.length > 0 || feedback.misconceptions.length > 0) && (
                           <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                             {feedback.correctPoints.length > 0 && (
@@ -1092,7 +1123,7 @@ export default function Home() {
                             )}
                           </div>
                         )}
-                        <p className="mt-3 text-xs font-semibold uppercase tracking-[.1em] text-[#5f7867]">
+                        <p className={`mt-3 text-xs font-semibold uppercase tracking-[.1em] ${feedbackTheme.source}`}>
                           Grounded in {feedback?.sourceReference.document ?? displayFileNames[0] ?? "your materials"}{feedback?.sourceReference.page ? ` · Page ${feedback.sourceReference.page}` : ""}
                         </p>
                       </div>

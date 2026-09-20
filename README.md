@@ -6,6 +6,8 @@ Cortex turns class materials into an adaptive study conversation. Students uploa
 
 - Drag-and-drop PDF, TXT, and Markdown uploads
 - Gemini-powered material summaries and topic identification
+- A confirmation warning when uploaded materials appear to cover unrelated subjects
+- A confirmation warning when a study goal appears unrelated to the uploaded materials
 - Suggested and custom study goals
 - Adaptive questions grounded in the uploaded material
 - Answer evaluation, source references, and follow-up questions

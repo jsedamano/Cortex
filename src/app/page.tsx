@@ -7,6 +7,10 @@ type Stage = "upload" | "goal" | "study";
 type MaterialAnalysis = {
   courseTitle: string;
   materialSummary: string;
+  materialCoherence: {
+    shouldWarn: boolean;
+    reason: string;
+  };
   topics: Array<{ name: string; description: string }>;
   suggestedGoals: string[];
 };
@@ -46,6 +50,10 @@ type StudyFeedback = {
 type StudyStartResponse = {
   interactionId: string;
   sessionTitle: string;
+  goalAlignment: {
+    shouldWarn: boolean;
+    reason: string;
+  };
   question: StudyQuestion;
   mastery: MasteryTopic[];
 };
@@ -67,6 +75,10 @@ const sampleAnalysis: MaterialAnalysis = {
   courseTitle: "Data Structures",
   materialSummary:
     "These sample notes cover linked-list structure, node references, traversal, and common insertion and removal operations.",
+  materialCoherence: {
+    shouldWarn: false,
+    reason: "",
+  },
   topics: [
     { name: "Linked-list fundamentals", description: "How nodes form an ordered collection." },
     { name: "Node structure", description: "How values and references are represented." },
@@ -122,6 +134,75 @@ function Icon({ name }: { name: "file" | "brain" | "arrow" | "check" | "close" }
   );
 }
 
+type WarningDialogProps = {
+  id: string;
+  title: string;
+  description: string;
+  secondaryLabel: string;
+  primaryLabel: string;
+  onSecondary: () => void;
+  onPrimary: () => void;
+};
+
+function WarningDialog({
+  id,
+  title,
+  description,
+  secondaryLabel,
+  primaryLabel,
+  onSecondary,
+  onPrimary,
+}: WarningDialogProps) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[#17231d]/55 px-5 py-8 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`${id}-title`}
+        aria-describedby={`${id}-description`}
+        className="w-full max-w-lg rounded-[28px] border border-white/40 bg-[#fffdf8] p-6 shadow-[0_30px_100px_rgba(10,25,18,.35)] sm:p-8"
+      >
+        <div className="flex items-start gap-4">
+          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#fff0d2] text-[#9a6412]">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="size-6">
+              <path d="M12 3 2.8 19h18.4L12 3Z" />
+              <path d="M12 9v4.5M12 17h.01" />
+            </svg>
+          </span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#b06d14]">A quick check</p>
+            <h2 id={`${id}-title`} className="mt-2 text-2xl font-semibold leading-tight tracking-[-0.035em] text-[#17231d] sm:text-3xl">
+              {title}
+            </h2>
+          </div>
+        </div>
+
+        <p id={`${id}-description`} className="mt-5 leading-7 text-[#58675f]">
+          {description}
+        </p>
+
+        <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            autoFocus
+            onClick={onSecondary}
+            className="rounded-2xl border border-[#173e2e]/15 bg-white px-5 py-3 font-semibold text-[#365247] transition hover:border-[#173e2e]/30 hover:bg-[#f4f2eb]"
+          >
+            {secondaryLabel}
+          </button>
+          <button
+            type="button"
+            onClick={onPrimary}
+            className="rounded-2xl bg-[#173e2e] px-5 py-3 font-semibold text-white transition hover:-translate-y-0.5 hover:bg-[#1e4d39]"
+          >
+            {primaryLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [stage, setStage] = useState<Stage>("upload");
   const [files, setFiles] = useState<File[]>([]);
@@ -138,6 +219,8 @@ export default function Home() {
   const [isStarting, setIsStarting] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [materialWarning, setMaterialWarning] = useState<string | null>(null);
+  const [goalWarning, setGoalWarning] = useState<StudyStartResponse | null>(null);
   const [studyError, setStudyError] = useState<string | null>(null);
   const [goal, setGoal] = useState("");
   const [answer, setAnswer] = useState("");
@@ -178,6 +261,8 @@ export default function Home() {
     setFeedback(null);
     setMastery([]);
     setUploadError(null);
+    setMaterialWarning(null);
+    setGoalWarning(null);
     setFiles((current) => {
       const allFiles = [...current, ...incoming];
       return allFiles.filter(
@@ -214,6 +299,8 @@ export default function Home() {
     setMastery([]);
     setFeedback(null);
     setUploadError(null);
+    setMaterialWarning(null);
+    setGoalWarning(null);
     setStudyError(null);
     setGoal("");
     setAnswer("");
@@ -223,6 +310,7 @@ export default function Home() {
 
   async function analyzeMaterials() {
     setUploadError(null);
+    setMaterialWarning(null);
 
     if (files.length === 0) {
       setSampleFileName("CS_2110_Linked_Lists.pdf");
@@ -255,7 +343,17 @@ export default function Home() {
 
       setAnalysis(payload.analysis);
       setMaterialInteractionId(payload.interactionId);
-      setStage("goal");
+      if (
+        files.length > 1 &&
+        payload.analysis.materialCoherence.shouldWarn
+      ) {
+        setMaterialWarning(
+          payload.analysis.materialCoherence.reason ||
+            "These materials appear to cover subjects that may work better in separate study sessions.",
+        );
+      } else {
+        setStage("goal");
+      }
     } catch (error) {
       setUploadError(
         error instanceof Error
@@ -267,9 +365,45 @@ export default function Home() {
     }
   }
 
+  function reviewMaterials() {
+    setMaterialWarning(null);
+    setAnalysis(null);
+    setMaterialInteractionId(null);
+  }
+
+  function continueWithMixedMaterials() {
+    setMaterialWarning(null);
+    setStage("goal");
+  }
+
+  function enterStudySession(session: StudyStartResponse) {
+    setSessionTitle(session.sessionTitle);
+    setCurrentQuestion(session.question);
+    setMastery(session.mastery);
+    setStudyInteractionId(session.interactionId);
+    setQuestionIndex(0);
+    setAnswer("");
+    setFeedback(null);
+    setQueuedQuestion(null);
+    setSubmitted(false);
+    setStage("study");
+  }
+
+  function editStudyGoal() {
+    setGoalWarning(null);
+  }
+
+  function continueWithOffTopicGoal() {
+    if (!goalWarning) return;
+    const pendingSession = goalWarning;
+    setGoalWarning(null);
+    enterStudySession(pendingSession);
+  }
+
   async function beginStudySession() {
     if (!goal.trim()) return;
     setStudyError(null);
+    setGoalWarning(null);
 
     if (!materialInteractionId) {
       setSessionTitle("Data Structures review");
@@ -309,16 +443,11 @@ export default function Home() {
         );
       }
 
-      setSessionTitle(payload.sessionTitle);
-      setCurrentQuestion(payload.question);
-      setMastery(payload.mastery);
-      setStudyInteractionId(payload.interactionId);
-      setQuestionIndex(0);
-      setAnswer("");
-      setFeedback(null);
-      setQueuedQuestion(null);
-      setSubmitted(false);
-      setStage("study");
+      if (payload.goalAlignment.shouldWarn) {
+        setGoalWarning(payload);
+      } else {
+        enterStudySession(payload);
+      }
     } catch (error) {
       setStudyError(
         error instanceof Error
@@ -727,6 +856,30 @@ export default function Home() {
             </div>
           </div>
         </section>
+      )}
+
+      {materialWarning && (
+        <WarningDialog
+          id="material-warning"
+          title="These materials may belong in separate sessions"
+          description={`${materialWarning} You can still study them together, but a more focused set of materials may produce a better session.`}
+          secondaryLabel="Review files"
+          primaryLabel="Continue anyway"
+          onSecondary={reviewMaterials}
+          onPrimary={continueWithMixedMaterials}
+        />
+      )}
+
+      {goalWarning && (
+        <WarningDialog
+          id="goal-warning"
+          title="This goal may not match your materials"
+          description={`${goalWarning.goalAlignment.reason || "Your study goal appears to focus on a topic that is not covered by the uploaded materials."} You can continue, but Cortex will keep its questions grounded in your files.`}
+          secondaryLabel="Edit goal"
+          primaryLabel="Continue anyway"
+          onSecondary={editStudyGoal}
+          onPrimary={continueWithOffTopicGoal}
+        />
       )}
     </main>
   );

@@ -436,7 +436,7 @@ export default function Home() {
       )}
 
       {stage === "upload" && (
-        <section className="mx-auto grid max-w-[1180px] gap-12 px-5 py-12 sm:px-8 sm:py-16 lg:grid-cols-[1.35fr_.65fr] lg:py-20">
+        <section className="mx-auto grid max-w-[1180px] gap-12 px-5 pt-5 pb-12 sm:px-8 sm:pt-6 sm:pb-16 lg:grid-cols-[1.35fr_.65fr] lg:pt-7 lg:pb-20">
           <div>
             <h1 className="max-w-3xl text-[clamp(3rem,7vw,5.8rem)] font-semibold leading-[.92] tracking-[-0.065em]">
               Turn your notes into <span className="font-serif font-medium italic text-[#e86f51]">practice.</span>
@@ -541,7 +541,7 @@ export default function Home() {
       )}
 
       {stage === "goal" && (
-        <section className="mx-auto max-w-[930px] px-5 py-12 sm:px-8 sm:py-20">
+        <section className="mx-auto max-w-[930px] px-5 pt-5 pb-12 sm:px-8 sm:pt-6 sm:pb-20">
           <button onClick={() => setStage("upload")} className="mb-8 flex items-center gap-2 text-sm font-semibold text-[#607067] transition hover:text-[#173e2e]">
             <span className="rotate-180"><span className="block size-4"><Icon name="arrow" /></span></span> Back to materials
           </button>
